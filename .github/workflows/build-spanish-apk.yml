@@ -1,0 +1,149 @@
+name: Build Spanish APK
+
+# 完整 APK 构建耗时约 19 分钟，改为「仅手动触发」，避免每次 push 都跑全量。
+# 日常代码验证走 verify.yml（只编 Kotlin，3-6 分钟）。
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      # ubuntu-latest runner 自带 ANDROID_SDK_ROOT 与 cmdline-tools，
+      # 不再使用 android-actions/setup-android@v3（其内部 sdkmanager tools 已因
+      # Google 移除 tools 包而失败），改为直接使用 runner 自带 SDK。
+      - name: Locate Android SDK
+        run: |
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-$ANDROID_HOME}" >> $GITHUB_ENV
+          echo "ANDROID_HOME=${ANDROID_HOME:-$ANDROID_SDK_ROOT}" >> $GITHUB_ENV
+          echo "SDK root = ${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          ls "${ANDROID_SDK_ROOT:-$ANDROID_HOME}" || true
+          ls "${ANDROID_SDK_ROOT:-$ANDROID_HOME}/cmdline-tools" || true
+      # 缓存 Gradle 依赖 + wrapper（提速关键）
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+      - name: Install SDK components
+        run: |
+          SDKROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          SDKMAN=$(find "$SDKROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -1)
+          echo "sdkmanager = $SDKMAN"
+          if [ -z "$SDKMAN" ]; then
+            SDKMAN="$SDKROOT/cmdline-tools/latest/bin/sdkmanager"
+          fi
+          "$SDKMAN" --install "platforms;android-36" "build-tools;36.0.0" "cmake;3.22.1" || true
+          if [ ! -d "$SDKROOT/ndk/29.0.14206865" ]; then
+            "$SDKMAN" --install "ndk;29.0.14206865" || true
+          fi
+          yes | "$SDKMAN" --licenses >/dev/null 2>&1 || true
+          echo "SDKMAN=$SDKMAN" >> $GITHUB_ENV
+      - name: Restore debug keystore
+        run: |
+          set -e
+          mkdir -p ~/.android
+          KS="$HOME/.android/debug.keystore"
+          # ★ 关键：仓库内固定 keystore，保证每次构建签名完全一致。
+          # 历史教训：曾经用 secrets.DEBUG_KEYSTORE_BASE64 还原，但该 secret
+          # 并不存在（展开为空）→ 触发下面的 keytool -genkeypair 兜底 →
+          # 每次都现场随机生成新密钥 → 签名每次都变，无法覆盖安装。
+          # 现在把 keystore 直接入库（debug 签名，storepass=android 为公开默认值，无泄密风险），
+          # 并**移除随机生成兜底**：文件缺失/不可用直接失败，绝不静默换签名。
+          REPO_KS="keystore/debug.keystore"
+          # 兼容两种来源：secrets（若将来配置了）优先，其次用仓库内文件。
+          if [ -n "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.DEBUG_KEYSTORE_BASE64 }}" | base64 -d > "$KS"
+          else
+            cp "$REPO_KS" "$KS"
+          fi
+          # 校验：不可用则直接失败（不再生成新密钥）。
+          if ! keytool -list -keystore "$KS" -storepass android -alias androiddebugkey >/dev/null 2>&1; then
+            echo "::error::keystore 不可用！拒绝用新密钥构建（会改变签名）。"
+            echo "::error::请检查仓库内 keystore/debug.keystore 是否存在且格式正确。"
+            exit 1
+          fi
+          echo "==== keystore 指纹（必须为稳定值）===="
+          keytool -list -v -keystore "$KS" -storepass android -alias androiddebugkey \
+            | grep -E 'Alias name|SHA1:|SHA256:' || true
+      - name: Write local.properties
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          # frb-project signingConfig 需要这些字段，否则 packageDebug 报 missing storeFile
+          echo "signing.storeFile=$HOME/.android/debug.keystore" >> local.properties
+          echo "signing.storePassword=android" >> local.properties
+          echo "signing.keyAlias=androiddebugkey" >> local.properties
+          echo "signing.keyPassword=android" >> local.properties
+          cat local.properties
+      - name: Grant gradlew permission
+        run: chmod +x gradlew
+      # GitHub Actions 在国外，访问阿里云镜像不通，改回官方源
+      - name: Use official maven repos
+        run: |
+          sed -i '/maven.aliyun.com/d' settings.gradle.kts
+          echo '--- settings.gradle.kts pluginManagement ---'
+          sed -n '1,30p' settings.gradle.kts
+      # 关键修复：某些 Gradle 插件（dev.rikka.tools.refine）在二进制里写死了
+      # toolchain {languageVersion=21, vendor=Oracle}。Gradle 8.x 对 vendor 是
+      # **字面匹配**，runner 上是 Temurin（java.vendor="Eclipse Adoptium"）→
+      # 报 "Cannot find a Java installation ... vendor=Oracle"。
+      #
+      # 实测：改 <JDK>/release 的 IMPLEMENTOR、JAVA_TOOL_OPTIONS -Djava.vendor
+      # 都无效。故直接下载 Oracle 官方 JDK 21（免登录直链）供 Gradle 使用。
+      - name: Install Oracle JDK 21 (vendor match)
+        run: |
+          set -e
+          URL="https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz"
+          echo "downloading $URL"
+          curl -fsSL --retry 3 --max-time 300 -o /tmp/oracle-jdk21.tar.gz "$URL"
+          ls -l /tmp/oracle-jdk21.tar.gz
+          sudo mkdir -p /opt/oracle-jdk
+          sudo tar -xzf /tmp/oracle-jdk21.tar.gz -C /opt/oracle-jdk --strip-components=1
+          ORACLE_HOME=$(find /opt/oracle-jdk -maxdepth 2 -name release -printf '%h\n' | head -1)
+          echo "ORACLE_HOME=$ORACLE_HOME"
+          grep -E '^(IMPLEMENTOR|JAVA_VERSION)=' "$ORACLE_HOME/release" || true
+          "$ORACLE_HOME/bin/java" -version 2>&1 || true
+          echo "JAVA_HOME=$ORACLE_HOME" >> $GITHUB_ENV
+          echo "ORG_GRADLE_PROJECT_java.home=$ORACLE_HOME" >> $GITHUB_ENV
+          echo "$ORACLE_HOME/bin" >> $GITHUB_PATH
+      # 只构建 official flavor（versionName 1.2.0）。
+      # manages flavor（frb.axerond.manages / versionCode 15000 / 1.4.8.r349）保留在
+      # build.gradle.kts 中以便需要时手动构建，但 CI 不再产出，避免 artifacts 里混入 1500 版本。
+      - name: Build release APKs (R8 enabled)
+        run: |
+          # R8 需要更大 CodeCache：覆盖掉 gradle.properties 里
+          # CICompilerCount=1 / -TieredCompilation 的省内存组合，
+          # 否则 minifyReleaseWithR8 会抛 "Out of space in CodeCache for method handle intrinsic"
+          ./gradlew :manager:assembleOfficialRelease \
+            --console=plain --parallel --build-cache \
+            -Dorg.gradle.jvmargs="-Xmx6g -XX:MaxMetaspaceSize=1g -XX:+UseParallelGC -XX:+TieredCompilation -XX:ReservedCodeCacheSize=512m -XX:CICompilerCount=2 -XX:ActiveProcessorCount=4 -Dfile.encoding=UTF-8"
+      - name: Verify signature
+        run: |
+          SDKROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          APKSIGNER=$(find "$SDKROOT/build-tools" -type f -name apksigner 2>/dev/null | sort | tail -1)
+          echo "apksigner = $APKSIGNER"
+          for APK in $(find . -path '*/build/outputs/apk/*/release/*.apk'); do
+            echo "---- $APK ----"
+            "$APKSIGNER" verify --print-certs "$APK"
+          done
+      - name: Collect APK
+        run: |
+          mkdir -p artifacts
+          find . -path '*/build/outputs/apk/*/release/*.apk' -exec cp {} artifacts/ \;
+          ls -la artifacts/
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AxManager-spanish-apk
+          path: artifacts/*.apk
