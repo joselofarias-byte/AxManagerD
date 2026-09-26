@@ -267,7 +267,7 @@ fun WebsiteCard() {
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "官方网站",
+                    text = "Sitio oficial",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -970,7 +970,7 @@ fun IssueReportCard() {
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = "发送邮件至 $feedbackEmail",
+                    text = "Enviar correo a $feedbackEmail",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
