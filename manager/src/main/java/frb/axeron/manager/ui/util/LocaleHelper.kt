@@ -115,6 +115,7 @@ object LocaleHelper {
         return when {
             lang.startsWith("zh") -> "请始终使用简体中文回答。"
             lang == "en" -> "Please always respond in English."
+            lang == "es" -> "Responde siempre en español."
             else -> "请始终使用简体中文回答。"
         }
     }
