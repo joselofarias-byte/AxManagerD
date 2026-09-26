@@ -3,7 +3,10 @@ name: Build Spanish APK
 # 完整 APK 构建耗时约 19 分钟，改为「仅手动触发」，避免每次 push 都跑全量。
 # 日常代码验证走 verify.yml（只编 Kotlin，3-6 分钟）。
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - build/spanish-apk-20260925
+
 jobs:
   build:
     runs-on: ubuntu-latest
