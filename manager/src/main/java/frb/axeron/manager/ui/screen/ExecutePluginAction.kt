@@ -83,7 +83,7 @@ fun ExecutePluginActionScreen(
     var isActionRunning by rememberSaveable { mutableStateOf(true) }
 
     // 解析/拦截阶段的进度指示（避免用户以为卡死）
-    var stage by rememberSaveable { mutableStateOf("正在准备解析…") }
+    var stage by rememberSaveable { mutableStateOf("Preparando el análisis…") }
 
     val view = LocalView.current
     DisposableEffect(isActionRunning) {
@@ -101,7 +101,7 @@ fun ExecutePluginActionScreen(
     var text by rememberSaveable { mutableStateOf("") }
     val logContent = rememberSaveable { StringBuilder() }
 
-    // 左上角「AI 分析」按钮状态：把当前输出的指令代码喂给云端 AI，分析是否有危险
+    // 左上角「Análisis con IA」按钮状态：把当前输出的指令代码喂给云端 AI，分析是否有危险
     var aiAnalyzing by rememberSaveable { mutableStateOf(false) }
     var aiAnalysisReply by rememberSaveable { mutableStateOf<String?>(null) }
 
@@ -136,11 +136,11 @@ fun ExecutePluginActionScreen(
                 var straceCount = 0
                 try {
                     // 1. 通过 shell 权限从 APK 自身 assets 里抽出静态 strace 二进制到 /data/local/tmp 并 chmod 755
-                    stage = "正在释放分析引擎…"
+                    stage = "Preparando el motor de análisis…"
                     val apkPath = view.context.packageCodePath
                     val stracePath = frb.axeron.manager.ai.StraceHelper.destPath()
                     val extractCmd = frb.axeron.manager.ai.StraceHelper.buildExtractCmd(apkPath)
-                    android.util.Log.i("AIEngine", "释放 strace: $extractCmd")
+                    android.util.Log.i("AIEngine", "Extrayendo strace: $extractCmd")
                     AxeronPluginService.execProcessSafe(
                         cmd = arrayOf("/system/bin/sh", "-c", extractCmd),
                         env = Axeron.getEnvironment()
@@ -155,20 +155,20 @@ fun ExecutePluginActionScreen(
                         // 2. 【同步 timeout 版】前台跑 strace，timeout 到点强制退出，绝不卡死。
                         // 抛弃旧的 setsid 后台轮询方案——那在 Shizuku binder 下 execProcessSafe 的
                         // waitFor() 会卡死，导致抓不到或阻塞。同步 timeout 对任意模块（含 while true
-                        // 常驻）都安全：抓"启动后前 N 秒核心指令"即可。
+                        // 常驻）都Seguro：抓"Comandos principales durante los primeros N segundos tras iniciar"即可。
                         //
                         // 【v1.4.0 关键修复 1：时长必须读设置值】
                         // 旧代码这里**写死 60**，完全没读 AIConfigStore.traceTimeoutSeconds，
                         // 导致用户在 AI 设置里调「拦截抓取时长」滑块对 action.sh 这条链路**完全无效**
-                        // （这正是用户反馈"调长调短都抓不全"的直接原因之一）。
+                        // （这正是用户反馈"No se puede capturar todo ajustando el intervalo"的直接原因之一）。
                         // 现改为读取设置值，与 PluginScriptTracer（启用模块链路）保持一致。
                         val timeoutSec = frb.axeron.manager.ai.AIConfigStore.traceTimeoutSeconds
-                        stage = "正在跟踪模块真实执行（${timeoutSec}s）…"
+                        stage = "Rastreando la ejecución real del módulo (${timeoutSec}s)…"
                         val traceLog = "/data/local/tmp/ax_trace_${plugin.dirId}.log"
                         val straceCmd = frb.axeron.manager.ai.StraceHelper.buildTraceCmdSync(
                             stracePath, pluginPath.absolutePath, traceLog, "action.sh", timeoutSeconds = timeoutSec
                         )
-                        android.util.Log.i("AIEngine", "strace 同步启动: $straceCmd")
+                        android.util.Log.i("AIEngine", "Inicio sincronizado de strace: $straceCmd")
                         runCatching {
                             AxeronPluginService.execProcessSafe(
                                 cmd = arrayOf("/system/bin/sh", "-c", straceCmd),
@@ -176,7 +176,7 @@ fun ExecutePluginActionScreen(
                             )
                         }
                         // 3. 读日志，逐行解析 execve 喂给采集器
-                        stage = "正在解析真实指令…"
+                        stage = "Analizando comandos reales…"
                         val traceText = runCatching {
                             AxeronPluginService.execProcessSafe(
                                 cmd = arrayOf("/system/bin/sh", "-c", "cat \"$traceLog\" 2>/dev/null"),
@@ -193,10 +193,10 @@ fun ExecutePluginActionScreen(
                             )
                         }
                     } else {
-                        android.util.Log.w("AIEngine", "strace 二进制释放失败，回退 sh -x")
+                        android.util.Log.w("AIEngine", "No se pudo preparar el binario strace; usando sh -x")
                     }
                 } catch (t: Throwable) {
-                    android.util.Log.e("AIEngine", "strace 预执行抓取失败，回退 sh -x", t)
+                    android.util.Log.e("AIEngine", "Falló la captura previa con strace; usando sh -x", t)
                 } finally {
                     // ============ v1.4.0 关键修复 2：sh -x 段「总是执行」，不再只做兜底 ============
                     // 旧逻辑：仅当 `snapshot().isEmpty()`（strace 一条都没抓到）才跑 sh -x。
@@ -207,7 +207,7 @@ fun ExecutePluginActionScreen(
                     // 表现为「抓到的指令不准确/不全」，且「时长调多长都没用」（再长也没 execve）。
                     // 现改为：两段**互补、都跑**——strace 抓外部命令（能穿加密壳），
                     // sh -x 抓内建命令（带完整重定向与参数）。
-                    stage = "正在补抓 shell 内建指令（sh -x）…"
+                    stage = "Capturando comandos internos de shell (sh -x)…"
                     val xtraceSec = runCatching { frb.axeron.manager.ai.AIConfigStore.traceTimeoutSeconds }
                         .getOrDefault(15)
                     val traceCmd = frb.axeron.manager.ai.StraceHelper.buildXtraceCmd(
@@ -236,7 +236,7 @@ fun ExecutePluginActionScreen(
                 }
                 straceBlock = frb.axeron.manager.ai.RuntimeCommandTracer.toPromptBlock()
                 straceCount = frb.axeron.manager.ai.RuntimeCommandTracer.snapshot().size
-                android.util.Log.i("AIEngine", "执行前 strace 抓取到 $straceCount 条真实指令")
+                android.util.Log.i("AIEngine", "strace capturó $straceCount comandos reales antes de ejecutar")
                 android.util.Log.i("AIEngine", "traceBlock=$straceBlock")
                 // ============ v1.1.1 卸载回滚落盘 ============
                 // 关键修复：运行模块（action.sh）场景之前【从未落盘】，导致卸载时
@@ -250,7 +250,7 @@ fun ExecutePluginActionScreen(
                             frb.axeron.manager.ai.RuntimeCommandTracer.snapshot()
                         )
                     } catch (t: Throwable) {
-                        android.util.Log.e("AIEngine", "卸载回滚日志落盘失败", t)
+                        android.util.Log.e("AIEngine", "No se pudo guardar el registro de reversión de desinstalación", t)
                     }
                 }
                 // ============ 落盘结束 ============
@@ -262,13 +262,13 @@ fun ExecutePluginActionScreen(
                         env = Axeron.getEnvironment()
                     ).stdout
                 }.getOrDefault("")
-                // 缓存脚本明文，供 AI 分析上下文（脚本原文参考）与拦截界面展示
+                // 缓存脚本明文，供 Análisis con IA上下文（脚本原文参考）与拦截界面展示
                 if (catScript.isNotBlank()) {
                     frb.axeron.manager.ai.AIEngineManager.updateScriptText(catScript)
                 }
                 val analyzeCmd = when {
-                    straceCount > 0 -> "$cmd\n\n# === 运行时真实执行指令流 ===\n$straceBlock"
-                    catScript.isNotBlank() -> "$cmd\n\n# === action.sh 脚本内容 ===\n$catScript"
+                    straceCount > 0 -> "$cmd\n\n# === Flujo real de comandos ejecutados en tiempo de ejecución ===\n$straceBlock"
+                    catScript.isNotBlank() -> "$cmd\n\n# === Contenido del script action.sh ===\n$catScript"
                     else -> cmd
                 }
 
@@ -289,12 +289,12 @@ fun ExecutePluginActionScreen(
                     pluginDirId = plugin.dirId,
                     pluginName = plugin.prop.name,
                 )
-                stage = "正在生成分析报告…"
+                stage = "Generando informe de análisis…"
                 val analysis = analyzer.analyze(analyzeCmd, ctx)
                 if (analysis != null && !analysis.allow) {
                     // 用户选择中止：不执行
                     launch(Dispatchers.Main) {
-                        text = "已被用户中止"
+                        text = "Cancelado por el usuario"
                     }
                     isActionRunning = false
                     return@launch
@@ -303,7 +303,7 @@ fun ExecutePluginActionScreen(
             // ---- 挂钩结束 ----
             // 开启运行时指令采集：cmd 里已用 `sh -x ./action.sh` 开启 xtrace，
             // 把模块脚本内部真实执行（含加密脚本解密后）的每一条命令打到 stderr。
-            stage = "正在执行模块…"
+            stage = "Ejecutando módulo…"
             frb.axeron.manager.ai.RuntimeCommandTracer.begin()
             AxeronPluginService.execWithIO(
                 cmd = cmd,
@@ -359,12 +359,12 @@ fun ExecutePluginActionScreen(
                     if (aiAnalyzing) return@TopBar
                     // 前置校验：云端未配置密钥且本地 AI 未运行（本地推理尚未接入）→ 提示不能用
                     if (!AIChatService.isCloudConfigured()) {
-                        scope.launch { snackBarHost.showSnackbar("未配置云端密钥且未运行本地 AI，无法使用 AI 分析") }
+                        scope.launch { snackBarHost.showSnackbar("No hay clave de nube configurada ni IA local activa; no se puede usar el análisis con IA") }
                         return@TopBar
                     }
                     val cmdText = if (developerOptionsEnabled) logContent.toString() else text
                     if (cmdText.isBlank()) {
-                        scope.launch { snackBarHost.showSnackbar("暂无可分析的指令") }
+                        scope.launch { snackBarHost.showSnackbar("No hay comandos para analizar") }
                         return@TopBar
                     }
                     aiAnalyzing = true
@@ -372,15 +372,15 @@ fun ExecutePluginActionScreen(
                     scope.launch {
                         val result = AIEngineManager.analyzeViaCloud(cmdText)
                         aiAnalysisReply = when {
-                            result == null -> "AI 分析失败（网络异常或响应异常）"
+                            result == null -> "Falló el análisis con IA (error de red o respuesta inválida)"
                             else -> {
                                 val riskLabel = when (result.risk) {
-                                    AnalyzeResult.Risk.SAFE -> "安全"
-                                    AnalyzeResult.Risk.LOW -> "低风险"
-                                    AnalyzeResult.Risk.MEDIUM -> "中风险"
-                                    AnalyzeResult.Risk.HIGH -> "高风险"
+                                    AnalyzeResult.Risk.SAFE -> "Seguro"
+                                    AnalyzeResult.Risk.LOW -> "Riesgo bajo"
+                                    AnalyzeResult.Risk.MEDIUM -> "Riesgo medio"
+                                    AnalyzeResult.Risk.HIGH -> "Riesgo alto"
                                 }
-                                "【AI 分析】风险等级：$riskLabel\n\n${result.summary}"
+                                "[Análisis con IA] Nivel de riesgo: $riskLabel\n\n${result.summary}"
                             }
                         }
                         aiAnalyzing = false
@@ -463,13 +463,13 @@ fun ExecutePluginActionScreen(
     // 解析/拦截阶段进度弹窗
     if (isActionRunning) {
         AlertDialog(
-            onDismissRequest = { /* 运行中不允许关闭 */ },
+            onDismissRequest = { /* 运行中不允许Cerrar */ },
             confirmButton = {},
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(text = "正在分析模块", style = MaterialTheme.typography.titleMedium)
+                    Text(text = "Analizando módulo", style = MaterialTheme.typography.titleMedium)
                 }
             },
             text = {
@@ -478,14 +478,14 @@ fun ExecutePluginActionScreen(
         )
     }
 
-    // AI 分析结果弹窗（左上角「AI 分析」按钮触发，把当前输出代码喂给云端 AI）
+    // Resultado del análisis con IA弹窗（左上角「Análisis con IA」按钮触发，把当前输出代码喂给云端 AI）
     val aiReply = aiAnalysisReply
     if (aiReply != null) {
         AlertDialog(
             onDismissRequest = { aiAnalysisReply = null },
             title = {
                 Text(
-                    text = "AI 分析结果",
+                    text = "Resultado del análisis con IA",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -508,7 +508,7 @@ fun ExecutePluginActionScreen(
                 TextButton(
                     onClick = { aiAnalysisReply = null }
                 ) {
-                    Text("关闭")
+                    Text("Cerrar")
                 }
             },
         )
@@ -545,7 +545,7 @@ private fun TopBar(
                     if (aiAnalyzing) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                     } else {
-                        Icon(Icons.Filled.AutoAwesome, contentDescription = "AI 分析")
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = "Análisis con IA")
                     }
                 }
             }
