@@ -156,7 +156,7 @@ fun QuickShellScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewMode
 
     var showExtraDialog by remember { mutableStateOf(false) }
 
-    // 终端 AI 助手面板开关（右下角 AI 悬浮按钮唤起）
+    // Asistente IA de terminal面板开关（右下角 AI 悬浮按钮唤起）
     var showAiSheet by remember { mutableStateOf(false) }
 
     ExtraSettings(
@@ -166,7 +166,7 @@ fun QuickShellScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewMode
         showExtraDialog = false
     }
 
-    // 终端 AI 助手：只回答 Shell/命令/系统排障/本应用功能类问题
+    // Asistente IA de terminal：只回答 Shell/命令/系统排障/本应用功能类问题
     if (showAiSheet) {
         TerminalAiSheet(
             onDismiss = { showAiSheet = false },
@@ -187,9 +187,9 @@ fun QuickShellScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewMode
                 val tail = logs.takeLast(40).joinToString("\n") { it.output }
                 val lastCmd = viewModel.snapshotLastCommand()
                 buildString {
-                    if (lastCmd.isNotBlank()) appendLine("最近执行的命令：$lastCmd")
+                    if (lastCmd.isNotBlank()) appendLine("Último comando ejecutado: $lastCmd")
                     if (tail.isNotBlank()) {
-                        appendLine("最近的终端输出：")
+                        appendLine("Salida reciente de la terminal:")
                         append(tail.take(3000))
                     }
                 }.trim()
@@ -241,13 +241,13 @@ fun QuickShellScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewMode
                     }
                 }
 
-                // 终端 AI 助手（常驻，右下角）
+                // Asistente IA de terminal（常驻，右下角）
                 FloatingActionButton(
                     onClick = { showAiSheet = true },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 ) {
-                    Icon(Icons.Filled.AutoAwesome, contentDescription = "终端 AI 助手")
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = "Asistente IA de terminal")
                 }
             }
         },
