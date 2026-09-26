@@ -112,11 +112,11 @@ fun PluginScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewModelGlo
     val listState = rememberLazyListState()
     var showFab by remember { mutableStateOf(true) }
 
-    // 分区：0 = shell 模块（普通插件），1 = 运行时模块
+    // 分区：0 = shell 模块（普通插件），1 = Módulos en tiempo de ejecución
     var section by rememberSaveable { mutableIntStateOf(0) }
-    val sections = listOf("shell模块", "运行时模块")
+    val sections = listOf("Módulos shell", "Módulos en tiempo de ejecución")
 
-    // 进入页面 / 切到运行时模块分区时，确保服务在跑并重扫一次目录。
+    // 进入页面 / 切到Módulos en tiempo de ejecución分区时，确保服务在跑并重扫一次目录。
     val runtimeContext = LocalContext.current
     LaunchedEffect(section) {
         if (section == 1) {
@@ -195,7 +195,7 @@ fun PluginScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewModelGlo
                         }
                     }
                 )
-                // 分区切换：shell 模块 / 运行时模块
+                // 分区切换：shell 模块 / Módulos en tiempo de ejecución
                 SingleChoiceSegmentedButtonRow(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -222,7 +222,7 @@ fun PluginScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewModelGlo
             ) {
                 // 用 rememberUpdatedState 固定「当前分区」的最新值：
                 // rememberLauncherForActivityResult 的回调闭包可能捕获注册时的旧 section，
-                // 导致在运行时模块分区安装却落到 plugins/。这里显式读取最新值。
+                // 导致在Módulos en tiempo de ejecución分区安装却落到 plugins/。这里显式读取最新值。
                 val currentSection by rememberUpdatedState(section)
                 val selectZipLauncher = rememberLauncherForActivityResult(
                     contract = ActivityResultContracts.StartActivityForResult()
