@@ -111,7 +111,7 @@ fun ActivateScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewModelG
 
     // 【v1.1.6 修复】激活后再次进入本页时，服务已在运行，会立即命中 popBackStack()。
     // 但 LaunchedEffect 在首帧组合期即执行，此时本页的导航事务尚未提交，
-    // 直接 pop 会操作到"正在入栈"的 back stack，触发导航状态崩溃（表现为进入即闪退）。
+    // 直接 pop 会操作到"Preparando…"的 back stack，触发导航状态崩溃（表现为进入即闪退）。
     // 用 remember 标记保证只回退一次，并延迟到本页入栈稳定后再执行。
     val popped = remember { mutableStateOf(false) }
     LaunchedEffect(axeronInfo) {
@@ -1869,7 +1869,7 @@ fun BatteryOptimizationSection() {
             }
             context.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "无法打开电池优化设置: ${e.message}", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, "No se pudo abrir la configuración de optimización de batería: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1889,13 +1889,13 @@ fun BatteryOptimizationSection() {
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "忽略电池优化（防后台冻结）",
+                    text = "Ignorar optimización de batería (evitar congelamiento en segundo plano)",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
             }
             Text(
-                text = "vivo 的 com.vivo.pem 会把后台应用冻结（D/S 状态），导致 Dhizuku 服务和 Service 无法稳定拉起。请为 AxManager 和 Dhizuku 都开启“忽略电池优化”，避免被系统冻结。",
+                text = "En dispositivos vivo, com.vivo.pem puede congelar apps en segundo plano y evitar que Dhizuku o sus servicios se mantengan activos. Activa «Ignorar optimización de batería» para AxManager y Dhizuku.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -1912,7 +1912,7 @@ fun BatteryOptimizationSection() {
                     modifier = Modifier.padding(end = 10.dp).size(16.dp),
                     contentDescription = null
                 )
-                Text(if (selfIgnoring) "AxManager 已忽略电池优化" else "请求忽略 AxManager 电池优化")
+                Text(if (selfIgnoring) "AxManager ya ignora la optimización de batería" else "Solicitar ignorar optimización de batería para AxManager")
             }
 
             // Dhizuku
@@ -1927,7 +1927,7 @@ fun BatteryOptimizationSection() {
                     modifier = Modifier.padding(end = 10.dp).size(16.dp),
                     contentDescription = null
                 )
-                Text(if (dhizukuIgnoring) "Dhizuku 已忽略电池优化" else "请求忽略 Dhizuku 电池优化")
+                Text(if (dhizukuIgnoring) "Dhizuku ya ignora la optimización de batería" else "Solicitar ignorar optimización de batería para Dhizuku")
             }
         }
     }

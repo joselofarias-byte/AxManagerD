@@ -52,7 +52,7 @@ import frb.axeron.manager.ai.TerminalAiPolicy
 import kotlinx.coroutines.launch
 
 /**
- * 终端 AI 助手面板（从 QuickShell 右下角 AI 悬浮按钮唤起）。
+ * Asistente IA de terminal面板（从 QuickShell 右下角 AI 悬浮按钮唤起）。
  *
  * 与「AI 安全引擎 → 云端对话」的区别：
  * 1. **职责受限**：只回答 Shell/命令/系统排障/本应用功能四类问题，
@@ -107,8 +107,8 @@ fun TerminalAiSheet(
             messages.add(
                 TerminalAiMsg(
                     false,
-                    "当前没有可用的 AI 服务。请到「设置 → AI 安全引擎」中开启官方免费 AI，" +
-                        "或配置自己的云端 API Key。",
+                    "No hay ningún servicio de IA disponible. Ve a «Ajustes → Motor de seguridad con IA» y activa la IA gratuita oficial," +
+                        "o configura tu propia clave API en la nube.",
                 ),
             )
             input = ""
@@ -124,7 +124,7 @@ fun TerminalAiSheet(
         val prompt = buildString {
             append(text)
             if (ctx.isNotBlank()) {
-                append("\n\n【当前终端上下文（仅供参考）】\n")
+                append("\n\n[Contexto actual de terminal (solo como referencia)]\n")
                 append(ctx)
             }
         }
@@ -142,10 +142,10 @@ fun TerminalAiSheet(
                 },
             )
             if (full == null && messages[idx].text.isBlank()) {
-                val reason = AIChatService.lastError ?: "未知原因"
+                val reason = AIChatService.lastError ?: "Motivo desconocido"
                 messages[idx] = TerminalAiMsg(
                     false,
-                    "调用失败：$reason\n\n若使用官方免费 AI，可稍等片刻再试（免费服务可能限流）。",
+                    "La llamada falló: $reason\n\nSi usas la IA gratuita oficial, espera un poco y vuelve a intentarlo; el servicio puede aplicar límites.",
                 )
             }
             sending = false
@@ -172,23 +172,23 @@ fun TerminalAiSheet(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "终端 AI 助手",
+                    text = "Asistente IA de terminal",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Spacer(Modifier.weight(1f))
                 if (messages.isNotEmpty()) {
                     IconButton(onClick = { messages.clear() }) {
-                        Icon(Icons.Filled.DeleteSweep, contentDescription = "清空对话")
+                        Icon(Icons.Filled.DeleteSweep, contentDescription = "Borrar conversación")
                     }
                 }
             }
 
             Text(
                 text = when {
-                    usingOfficial -> "当前使用：官方免费 AI（可能限流）"
-                    cloudReady -> "当前使用：自定义云端 API"
-                    else -> "未配置 AI 服务，请到「设置 → AI 安全引擎」开启"
+                    usingOfficial -> "En uso: IA gratuita oficial (puede tener límites)"
+                    cloudReady -> "En uso: API en la nube personalizada"
+                    else -> "No hay servicio de IA configurado. Actívalo en «Ajustes → Motor de seguridad con IA»."
                 },
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -206,7 +206,7 @@ fun TerminalAiSheet(
                 ) {
                     item {
                         Text(
-                            text = "我只能回答与终端相关的问题。试试下面这些：",
+                            text = "Solo puedo responder preguntas relacionadas con la terminal. Prueba con estas opciones:",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -234,7 +234,7 @@ fun TerminalAiSheet(
                 Spacer(Modifier.size(8.dp))
             }
 
-            // —— 快捷提问（引导"只能问哪些问题"）——
+            // —— 快捷提问（引导"¿Qué puedo preguntar?"）——
             LazyRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -272,7 +272,7 @@ fun TerminalAiSheet(
                     value = input,
                     onValueChange = { input = it },
                     modifier = Modifier.weight(1f),
-                    placeholder = { Text("问我终端/命令/系统相关的问题…") },
+                    placeholder = { Text("Pregúntame sobre terminal, comandos o sistema…") },
                     maxLines = 4,
                     textStyle = MaterialTheme.typography.bodyMedium.copy(
                         fontFamily = FontFamily.Monospace,
@@ -280,7 +280,7 @@ fun TerminalAiSheet(
                 )
                 Spacer(Modifier.width(6.dp))
                 IconButton(onClick = { send(input) }, enabled = !sending) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "发送")
+                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Enviar")
                 }
             }
         }
@@ -296,7 +296,7 @@ private data class TerminalAiMsg(
     val text: String,
 )
 
-/** 终端 AI 气泡：AI 回复若含代码块，提供"填入终端"按钮 */
+/** 终端 AI 气泡：AI 回复若含代码块，提供"Insertar en terminal"按钮 */
 @Composable
 private fun TerminalMsgBubble(
     text: String,
@@ -336,7 +336,7 @@ private fun TerminalMsgBubble(
                             modifier = Modifier.size(15.dp),
                         )
                         Spacer(Modifier.width(4.dp))
-                        Text("填入终端", style = MaterialTheme.typography.labelSmall)
+                        Text("Insertar en terminal", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }

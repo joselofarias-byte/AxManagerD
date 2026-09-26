@@ -90,7 +90,7 @@ import java.util.Locale
  * 启用模块分析界面：和「运行 action.sh」界面完全一致，
  * 但拦截的是模块在「启用」时真实执行的脚本（service.sh / post-fs-data.sh）。
  *
- * 流程：strace 动态拦截真实指令 → AI 分析弹窗（Source.ACTION 强制）→
+ * 流程：strace 动态拦截真实指令 → Análisis con IA弹窗（Source.ACTION 强制）→
  * 用户允许才真正 togglePlugin 启用，拒绝则回滚（不启用）。
  */
 @Destination<RootGraph>
@@ -106,7 +106,7 @@ fun EnablePluginScreen(
 
     var isRunning by remember { mutableStateOf(true) }
 
-    var stage by remember { mutableStateOf("正在准备分析…") }
+    var stage by remember { mutableStateOf("Preparando análisis…") }
 
     // 界面内决策弹窗状态（绕开跨 Activity 启动，避免后台启动限制导致卡死）
     var decisionResult by remember { mutableStateOf<AnalyzeResult?>(null) }
@@ -118,7 +118,7 @@ fun EnablePluginScreen(
     // 单独展示，与「脚本明文」区分开（v43）。
     var decisionTraceText by remember { mutableStateOf("") }
 
-    // 左上角「AI 分析」按钮状态：把当前输出的指令代码喂给云端 AI，分析是否有危险
+    // 左上角「Análisis con IA」按钮状态：把当前输出的指令代码喂给云端 AI，分析是否有危险
     var aiAnalyzing by remember { mutableStateOf(false) }
     var aiAnalysisReply by remember { mutableStateOf<String?>(null) }
 
@@ -137,10 +137,10 @@ fun EnablePluginScreen(
     val scope = rememberCoroutineScope()
 
     // 注意：必须用 remember（非 rememberSaveable）。若用 rememberSaveable，用户在
-    // 卡住/返回后再次进入时，text 会被恢复成非"正在初始化…"的旧值，导致下面 guard
-    // 判定成立直接 return，整个分析流程永不启动 → 永久卡在"正在准备分析…"。
+    // 卡住/返回后再次进入时，text 会被恢复成非"Inicializando…"的旧值，导致下面 guard
+    // 判定成立直接 return，整个分析流程永不启动 → 永久卡在"Preparando análisis…"。
     // 用 remember：每次导航真实进入都是全新组合，text 恒为初始值，协程必然启动。
-    var text by remember { mutableStateOf("正在初始化…") }
+    var text by remember { mutableStateOf("Inicializando…") }
     val logContent = remember { StringBuilder() }
 
     suspend fun dbg(msg: String) {
@@ -153,9 +153,9 @@ fun EnablePluginScreen(
     }
 
     LaunchedEffect(Unit) {
-        dbg("== EnablePluginScreen LaunchedEffect 进入 ==")
+        dbg("== EnablePluginScreen LaunchedEffect iniciado ==")
         // LaunchedEffect(Unit) 只在组合首次进入时执行一次，无需 text guard。
-        // 原 guard（if text!="正在初始化…" return）配合 rememberSaveable 是致命 bug 来源，
+        // 原 guard（if text!="Inicializando…" return）配合 rememberSaveable 是致命 bug 来源，
         // 已删除。
         launch(Dispatchers.IO) {
             val pluginPath = File(
@@ -176,46 +176,46 @@ fun EnablePluginScreen(
             // 启用时会真实执行的脚本（Igniter 依次跑 post-fs-data.sh、system.prop、service.sh）
             // 注意：必须用【shell 权限】探测脚本是否存在（test -f）。插件目录位于
             // /data/user_de/0/com.android.shell/axeron/plugins 下，是 com.android.shell 私有目录，
-            // App 进程的 File(...).exists() 无法访问 → 恒 false，导致即使模块有 service.sh 也被判成"无启用脚本"。
+            // App 进程的 File(...).exists() 无法访问 → 恒 false，导致即使模块有 service.sh 也被判成"Sin script de activación"。
             val enableScripts = listOf("service.sh", "post-fs-data.sh")
             val existingScripts = enableScripts.filter { script ->
                 execSh("test -f \"${pluginPath.absolutePath}/$script\" && echo YES").contains("YES")
             }
-            dbg("existingScripts=${existingScripts}（shell 权限 test -f 探测）")
+            dbg("existingScripts=${existingScripts} (detección test -f con permisos shell)")
 
             // 真正启用：写标记 + 触发 ignite 让 Igniter 执行 service.sh 注册
             suspend fun doEnable() {
-                stage = "正在启用模块…"
-                dbg("doEnable 开始: togglePlugin")
+                stage = "Activando módulo…"
+                dbg("doEnable iniciado: togglePlugin")
                 val ok = AxeronPluginService.togglePlugin(plugin.dirId, true, plugin.backup)
                 dbg("doEnable togglePlugin ok=$ok")
                 if (ok) {
                     runCatching { AxeronPluginService.igniteSuspendService() }
-                    dbg("doEnable ignite 完成")
+                    dbg("doEnable ignite completado")
                 }
                 pluginViewModel.markNeedRefresh()
                 launch(Dispatchers.Main) {
-                    text = if (ok) "✅ 模块已启用\n\n${plugin.prop.name} 已成功启用。" else "❌ 启用失败"
+                    text = if (ok) "✅ Módulo activado\n\n${plugin.prop.name} se activó correctamente." else "❌ Error al activar"
                 }
                 isRunning = false
-                dbg("doEnable 完成 isRunning=false")
+                dbg("doEnable completado isRunning=false")
             }
 
             // 没有任何启用脚本：直接启用（无需分析）
             if (existingScripts.isEmpty()) {
-                stage = "该模块无启用脚本（service.sh/post-fs-data.sh），直接启用…"
-                dbg("无启用脚本，直接 doEnable")
+                stage = "Este módulo no tiene script de activación (service.sh/post-fs-data.sh); se activará directamente…"
+                dbg("Sin script de activación; ejecutar doEnable directamente")
                 doEnable()
                 return@launch
             }
             // 白名单：命中则跳过拦截分析，直接启用（避免耗时，用户已明确信任该模块）
             if (AIConfigStore.isWhitelisted(plugin.dirId, plugin.prop.name)) {
-                stage = "该模块已在白名单，跳过拦截直接启用…"
-                dbg("命中白名单 dirId=${plugin.dirId} name=${plugin.prop.name}，直接 doEnable")
+                stage = "El módulo está en la lista permitida; se omite la interceptación y se activa directamente…"
+                dbg("Coincidencia con lista permitida dirId=${plugin.dirId} name=${plugin.prop.name}; ejecutar doEnable")
                 doEnable()
                 return@launch
             }
-            dbg("有启用脚本，进入 strace 拦截流程")
+            dbg("Hay script de activación; iniciando captura con strace")
 
             val analyzer = AxeronPluginService.commandAnalyzer
             dbg("commandAnalyzer=${analyzer != null}")
@@ -224,7 +224,7 @@ fun EnablePluginScreen(
             var combinedBlock = ""
             var totalCount = 0
             for (script in existingScripts) {
-                dbg(">> 开始 strace 拦截 script=$script")
+                dbg(">> Iniciar captura strace script=$script")
                 val trace = PluginScriptTracer.tracePluginScript(
                     context = view.context,
                     plugin = plugin,
@@ -232,19 +232,19 @@ fun EnablePluginScreen(
                     scriptName = script,
                     onStage = { stage = it },
                 )
-                dbg(">> strace 拦截完成 script=$script count=${trace.count}")
+                dbg(">> Captura strace completada script=$script count=${trace.count}")
                 if (trace.count > 0) {
                     if (combinedBlock.isNotEmpty()) combinedBlock += "\n"
                     combinedBlock += trace.promptBlock
                     totalCount += trace.count
                 }
             }
-            dbg("全部脚本拦截完成 totalCount=$totalCount combinedBlock.length=${combinedBlock.length}")
+            dbg("Captura de todos los scripts completada totalCount=$totalCount combinedBlock.length=${combinedBlock.length}")
 
             val baseCmd = existingScripts.joinToString(prefix = "sh ", separator = " sh ") { "./$it" }
 
             val analyzeCmd = if (totalCount > 0) {
-                "$baseCmd\n\n# === 启用时真实执行指令流 ===\n$combinedBlock"
+                "$baseCmd\n\n# === Flujo real de comandos durante la activación ===\n$combinedBlock"
             } else {
                 val catParts = mutableListOf<String>()
                 for (script in existingScripts) {
@@ -274,15 +274,15 @@ fun EnablePluginScreen(
                 AIEngineManager.updateRuntimeTrace(combinedBlock)
             }
 
-            // AI 分析（Source.ACTION 强制弹窗）；在界面内直接弹决策框，绕开跨 Activity 启动
+            // Análisis con IA（Source.ACTION 强制弹窗）；在界面内直接弹决策框，绕开跨 Activity 启动
             if (analyzer != null) {
-                stage = "正在生成分析报告…"
-                dbg("stage=生成分析报告，analyzeCmd.length=${analyzeCmd.length}，totalCount=$totalCount")
+                stage = "Generando informe de análisis…"
+                dbg("stage=generando informe, analyzeCmd.length=${analyzeCmd.length}, totalCount=$totalCount")
 
-                // 把 strace 真实抓到的执行指令流展示到界面主体（让用户看清"启用此模块会执行哪些指令"）
+                // 把 strace 真实抓到的执行指令流展示到界面主体（让用户看清"Qué comandos ejecutará este módulo al activarse"）
                 // 优先展示真实执行的指令清单；若没抓到则展示脚本明文。
                 val cmdDisplay = if (totalCount > 0) {
-                    "【检测到该模块启用时真实执行的指令（共 $totalCount 条）】\n\n$combinedBlock"
+                    "[Comandos reales detectados al activar el módulo: $totalCount]\n\n$combinedBlock"
                 } else {
                     val catTxt = buildString {
                         for (script in existingScripts) {
@@ -290,20 +290,20 @@ fun EnablePluginScreen(
                             if (c.isNotBlank()) append("# === $script ===\n$c\n\n")
                         }
                     }
-                    if (catTxt.isNotBlank()) "【未能用 strace 检测到真实指令，下列为该模块启用脚本明文】\n\n$catTxt"
-                    else "【未检测到可分析的指令】"
+                    if (catTxt.isNotBlank()) "[strace no pudo detectar comandos reales; se muestra el script de activación]\n\n$catTxt"
+                    else "[No se detectaron comandos analizables]"
                 }
                 launch(Dispatchers.Main) {
                     text = cmdDisplay
                 }
 
                 // 直接本地规则分析拿结果（不涉及网络/Activity，稳定可靠）
-                dbg("RuleEngine.analyze 开始")
+                dbg("RuleEngine.analyze iniciado")
                 val ruleResult = RuleEngine.analyze(analyzeCmd)
-                dbg("RuleEngine.analyze 完成 risk=${ruleResult.risk}")
+                dbg("RuleEngine.analyze completado risk=${ruleResult.risk}")
 
-                // 界面内决策：弹决策 Dialog，挂起等用户点「继续执行 / 中止」
-                dbg("进入 decision 等待（挂起等用户点击…）")
+                // 界面内决策：弹决策 Dialog，挂起等用户点「Continuar / Cancelar」
+                dbg("Esperando decisión del usuario…")
                 val allowed = withContext(Dispatchers.Main) {
                     val deferred = CompletableDeferred<Boolean>()
                     decisionResult = ruleResult
@@ -317,18 +317,18 @@ fun EnablePluginScreen(
                     decisionDeferred = null
                     result
                 }
-                dbg("decision 用户选择 allowed=$allowed")
+                dbg("Decisión del usuario allowed=$allowed")
 
                 if (!allowed) {
-                    dbg("用户拒绝，回滚不启用")
+                    dbg("El usuario rechazó; no se activará el módulo")
                     launch(Dispatchers.Main) {
-                        text = "❌ 已被用户中止\n\n${plugin.prop.name} 的启用操作已被取消，模块未启用。"
+                        text = "❌ Cancelado por el usuario\n\nSe canceló la activación de ${plugin.prop.name}; el módulo no se activó."
                     }
                     isRunning = false
                     return@launch
                 }
             }
-            dbg("用户允许（或 analyzer==null），调用 doEnable")
+            dbg("Usuario permitió (o analyzer==null); ejecutar doEnable")
 
             // 用户允许：真正启用
             doEnable()
@@ -346,7 +346,7 @@ fun EnablePluginScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "启用 ${plugin.prop.name}",
+                        text = "Activar ${plugin.prop.name}",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold,
                     )
@@ -362,12 +362,12 @@ fun EnablePluginScreen(
                                 if (aiAnalyzing) return@IconButton
                                 // 前置校验：云端未配置密钥且本地模型未导入 → 提示不能用
                                 if (!AIChatService.isAiAvailable()) {
-                                    scope.launch { snackBarHost.showSnackbar("未配置云端密钥且未导入本地模型，无法使用 AI 分析") }
+                                    scope.launch { snackBarHost.showSnackbar("No hay clave de nube configurada ni modelo local importado; no se puede usar el análisis con IA") }
                                     return@IconButton
                                 }
                                 val cmdText = text
-                                if (cmdText.isBlank() || cmdText == "正在初始化…") {
-                                    scope.launch { snackBarHost.showSnackbar("暂无可分析的指令") }
+                                if (cmdText.isBlank() || cmdText == "Inicializando…") {
+                                    scope.launch { snackBarHost.showSnackbar("No hay comandos para analizar") }
                                     return@IconButton
                                 }
                                 aiAnalyzing = true
@@ -375,15 +375,15 @@ fun EnablePluginScreen(
                                 scope.launch {
                                     val result = AIEngineManager.analyzeViaCloud(cmdText)
                                     aiAnalysisReply = when {
-                                        result == null -> "AI 分析失败（网络异常或响应异常）"
+                                        result == null -> "Falló el análisis con IA (error de red o respuesta inválida)"
                                         else -> {
                                             val riskLabel = when (result.risk) {
-                                                AnalyzeResult.Risk.SAFE -> "安全"
-                                                AnalyzeResult.Risk.LOW -> "低风险"
-                                                AnalyzeResult.Risk.MEDIUM -> "中风险"
-                                                AnalyzeResult.Risk.HIGH -> "高风险"
+                                                AnalyzeResult.Risk.SAFE -> "Seguro"
+                                                AnalyzeResult.Risk.LOW -> "Riesgo bajo"
+                                                AnalyzeResult.Risk.MEDIUM -> "Riesgo medio"
+                                                AnalyzeResult.Risk.HIGH -> "Riesgo alto"
                                             }
-                                            "【AI 分析】风险等级：$riskLabel\n\n${result.summary}"
+                                            "[Análisis con IA] Nivel de riesgo: $riskLabel\n\n${result.summary}"
                                         }
                                     }
                                     aiAnalyzing = false
@@ -394,7 +394,7 @@ fun EnablePluginScreen(
                             if (aiAnalyzing) {
                                 CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                             } else {
-                                Icon(Icons.Filled.AutoAwesome, contentDescription = "AI 分析")
+                                Icon(Icons.Filled.AutoAwesome, contentDescription = "Análisis con IA")
                             }
                         }
                     }
@@ -476,13 +476,13 @@ fun EnablePluginScreen(
 
     if (isRunning && decisionResult == null) {
         AlertDialog(
-            onDismissRequest = { /* 分析中不允许关闭 */ },
+            onDismissRequest = { /* 分析中不允许Cerrar */ },
             confirmButton = {},
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     CircularProgressIndicator(modifier = Modifier.size(24.dp))
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(text = "正在分析模块", style = MaterialTheme.typography.titleMedium)
+                    Text(text = "Analizando módulo", style = MaterialTheme.typography.titleMedium)
                 }
             },
             text = {
@@ -491,14 +491,14 @@ fun EnablePluginScreen(
         )
     }
 
-    // 界面内决策弹窗：分析完成后，让用户决定「继续执行 / 中止」
+    // 界面内决策弹窗：分析完成后，让用户决定「Continuar / Cancelar」
     val currentDecision = decisionResult
     if (currentDecision != null && decisionDeferred != null) {
         val riskLabel = when (currentDecision.risk) {
-            AnalyzeResult.Risk.SAFE -> "安全"
-            AnalyzeResult.Risk.LOW -> "低风险"
-            AnalyzeResult.Risk.MEDIUM -> "中风险"
-            AnalyzeResult.Risk.HIGH -> "高风险"
+            AnalyzeResult.Risk.SAFE -> "Seguro"
+            AnalyzeResult.Risk.LOW -> "Riesgo bajo"
+            AnalyzeResult.Risk.MEDIUM -> "Riesgo medio"
+            AnalyzeResult.Risk.HIGH -> "Riesgo alto"
         }
         val riskColor = when (currentDecision.risk) {
             AnalyzeResult.Risk.SAFE -> GREEN
@@ -509,10 +509,10 @@ fun EnablePluginScreen(
         val matched = currentDecision.matchedRules
 
         AlertDialog(
-            onDismissRequest = { /* 必须显式选择，不允许点外部关闭 */ },
+            onDismissRequest = { /* 必须显式选择，不允许点外部Cerrar */ },
             title = {
                 Text(
-                    text = "AI 安全分析 — ${decisionPluginName}",
+                    text = "Análisis de seguridad con IA — ${decisionPluginName}",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -523,16 +523,16 @@ fun EnablePluginScreen(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                 ) {
-                    // 提示：自动解析的代码可能不完整或有误，建议交 AI 分析后决定
+                    // 提示：自动解析的代码可能不完整或有误，建议交 Análisis con IA后决定
                     Text(
-                        text = "⚠️ 自动解析的代码可能不完整或有误，建议交给下方 AI 提问分析后再决定是否放行。",
+                        text = "⚠️ El análisis automático puede ser incompleto o contener errores. Consulta a la IA antes de decidir si permites la ejecución.",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold,
                         color = ORANGE
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "风险等级：$riskLabel",
+                        text = "Nivel de riesgo: $riskLabel",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = riskColor
@@ -540,13 +540,13 @@ fun EnablePluginScreen(
                     Spacer(Modifier.height(8.dp))
                     if (matched.isEmpty()) {
                         Text(
-                            text = "未发现危险操作",
+                            text = "No se detectaron operaciones peligrosas",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     } else {
                         Text(
-                            text = "检测到的风险操作（${matched.size} 项）：",
+                            text = "Operaciones de riesgo detectadas (${matched.size}):",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold
                         )
@@ -561,7 +561,7 @@ fun EnablePluginScreen(
                         }
                         if (matched.size > 10) {
                             Text(
-                                text = "…（其余 ${matched.size - 10} 项略）",
+                                text = "… (${matched.size - 10} elementos restantes omitidos)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -582,8 +582,8 @@ fun EnablePluginScreen(
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = if (cmdExpanded) "点击收起" else (decisionCmd.lineSequence().firstOrNull()?.take(50)
-                                ?.plus(if (decisionCmd.length > 50) "…" else "") ?: "（空）"),
+                            text = if (cmdExpanded) "Pulsa para contraer" else (decisionCmd.lineSequence().firstOrNull()?.take(50)
+                                ?.plus(if (decisionCmd.length > 50) "…" else "") ?: "(vacío)"),
                             style = MaterialTheme.typography.bodySmall.copy(
                                 fontFamily = FontFamily.Monospace,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -604,7 +604,7 @@ fun EnablePluginScreen(
 
                     // ============ 拦截到的真实指令（v43）：单独清晰展示 strace 抓取的真实执行指令 ============
                     // 与「命令预览」（analyzeCmd 拼接体）和「脚本原文」（明文脚本）区分开。
-                    // 这是 AI 分析与用户判断的核心依据：模块启用时真实执行了哪些命令行。
+                    // 这是 Análisis con IA与用户判断的核心依据：模块启用时真实执行了哪些命令行。
                     if (decisionTraceText.isNotBlank()) {
                         Spacer(Modifier.height(8.dp))
                         var traceExpanded by remember { mutableStateOf(true) }
@@ -619,7 +619,7 @@ fun EnablePluginScreen(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                text = if (traceExpanded) "拦截到的真实指令（点击收起）" else "拦截到的真实指令（点击展开）",
+                                text = if (traceExpanded) "Comandos reales capturados (pulsa para contraer)" else "Comandos reales capturados (pulsa para expandir)",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
                                 color = GREEN,
@@ -653,7 +653,7 @@ fun EnablePluginScreen(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                text = if (scriptExpanded) "脚本原文（参考，点击收起）" else "脚本原文（参考，点击展开）",
+                                text = if (scriptExpanded) "Script original (referencia; pulsa para contraer)" else "Script original (referencia; pulsa para expandir)",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = ORANGE,
@@ -674,7 +674,7 @@ fun EnablePluginScreen(
 
                     Spacer(Modifier.height(12.dp))
                     // ============ AI 对话区（仅本地 AI + 云端 AI） ============
-                    // 让用户在拦截决策时直接向 AI 提问"这个模块有什么用/会改什么"，
+                    // 让用户在拦截决策时直接向 AI Preguntar"¿Qué hace este módulo y qué modifica?"，
                     // 基于真实执行指令流 + 规则结果回答，帮助判断是否放行。
                     var aiQuestion by remember { mutableStateOf("") }
                     var aiAnswer by remember { mutableStateOf("") }
@@ -692,28 +692,28 @@ fun EnablePluginScreen(
                                     currentCmd = decisionCmd,
                                 )
                                 val contextBlock = buildString {
-                                    appendLine("【模块名】$decisionPluginName")
-                                    appendLine("【待验证命令】")
+                                    appendLine("[Módulo] $decisionPluginName")
+                                    appendLine("[Comandos a verificar]")
                                     appendLine(decisionCmd.take(2000))
                                     val trace = AIEngineManager.lastRuntimeTrace
                                     if (!trace.isNullOrBlank()) {
                                         appendLine()
-                                        appendLine("【真实执行指令流】")
+                                        appendLine("[Flujo real de comandos ejecutados]")
                                         appendLine(trace.take(3000))
                                     }
                                     val scriptText = AIEngineManager.lastScriptText
                                     if (!scriptText.isNullOrBlank() && !AIEnvironment.isEncryptedScript(scriptText)) {
                                         appendLine()
-                                        appendLine("【脚本原文（解析结果可能有误，此原文供参考）】")
+                                        appendLine("[Script original (el análisis puede ser inexacto; se incluye como referencia)]")
                                         appendLine(scriptText.take(3000))
                                     } else if (!scriptText.isNullOrBlank() && AIEnvironment.isEncryptedScript(scriptText)) {
                                         appendLine()
-                                        appendLine("【脚本已加密/混淆，无法读取明文，请仅依据上方「真实执行指令流」分析其真实行为】")
+                                        appendLine("[El script está cifrado u ofuscado y no puede leerse. Analiza su comportamiento únicamente a partir del flujo real de comandos anterior.]")
                                     }
                                 }
                                 val reply = AIChatService.chatOnce(
                                     system = system,
-                                    prompt = contextBlock + "\n\n用户问题：$q",
+                                    prompt = contextBlock + "\n\nPregunta del usuario: $q",
                                 )
                                 aiAnswer = reply
                                     ?: RestrictedQA.answer(q, currentDecision)
@@ -726,7 +726,7 @@ fun EnablePluginScreen(
                     }
 
                     Text(
-                        text = "向 AI 提问（了解模块功能/风险）",
+                        text = "Preguntar a la IA sobre función y riesgos del módulo",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -736,12 +736,12 @@ fun EnablePluginScreen(
                             value = aiQuestion,
                             onValueChange = { aiQuestion = it },
                             modifier = Modifier.weight(1f),
-                            placeholder = { Text("这个模块会改什么？有什么风险？") },
+                            placeholder = { Text("¿Qué modifica este módulo? ¿Qué riesgos tiene?") },
                             singleLine = true
                         )
                         Spacer(Modifier.width(6.dp))
                         Button(onClick = { askAi(aiQuestion) }, enabled = !aiAsking) {
-                            Text(if (aiAsking) "回答中…" else "提问")
+                            Text(if (aiAsking) "Respondiendo…" else "Preguntar")
                         }
                     }
                     if (aiAnswer.isNotEmpty()) {
@@ -757,19 +757,19 @@ fun EnablePluginScreen(
             },
             confirmButton = {
                 Column(horizontalAlignment = Alignment.End) {
-                    // 加入白名单：把当前模块加入白名单并放行，之后启用/运行/安装都不再拦截
+                    // 加入白名单：把当前模块Añadir a la lista permitida y continuar，之后启用/运行/安装都不再拦截
                     androidx.compose.material3.TextButton(
                         onClick = {
                             AIConfigStore.addWhitelist(plugin.dirId, decisionPluginName)
                             decisionDeferred?.complete(true)
                         }
                     ) {
-                        Text("加入白名单并放行", color = GREEN)
+                        Text("Añadir a la lista permitida y continuar", color = GREEN)
                     }
                     androidx.compose.material3.TextButton(
                         onClick = { decisionDeferred?.complete(true) }
                     ) {
-                        Text("继续执行")
+                        Text("Continuar")
                     }
                 }
             },
@@ -777,20 +777,20 @@ fun EnablePluginScreen(
                 androidx.compose.material3.TextButton(
                     onClick = { decisionDeferred?.complete(false) }
                 ) {
-                    Text("中止", color = MaterialTheme.colorScheme.error)
+                    Text("Cancelar", color = MaterialTheme.colorScheme.error)
                 }
             },
         )
     }
 
-    // AI 分析结果弹窗（左上角「AI 分析」按钮触发，把当前输出代码喂给云端 AI）
+    // Resultado del análisis con IA弹窗（左上角「Análisis con IA」按钮触发，把当前输出代码喂给云端 AI）
     val aiReply = aiAnalysisReply
     if (aiReply != null) {
         AlertDialog(
             onDismissRequest = { aiAnalysisReply = null },
             title = {
                 Text(
-                    text = "AI 分析结果",
+                    text = "Resultado del análisis con IA",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
@@ -813,7 +813,7 @@ fun EnablePluginScreen(
                 androidx.compose.material3.TextButton(
                     onClick = { aiAnalysisReply = null }
                 ) {
-                    Text("关闭")
+                    Text("Cerrar")
                 }
             },
         )
