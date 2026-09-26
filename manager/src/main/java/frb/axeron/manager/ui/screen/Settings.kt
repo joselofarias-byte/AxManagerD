@@ -184,7 +184,7 @@ fun SettingsScreen(navigator: DestinationsNavigator, viewModelGlobal: ViewModelG
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) {
                             frb.axeron.manager.features.backup.BackupManager
-                                .backup(settingsContext, reason = "手动备份")
+                                .backup(settingsContext, reason = "copia manual")
                         }
                         backupTime = frb.axeron.manager.features.backup.BackupManager
                             .lastBackupTime(settingsContext)
@@ -712,7 +712,7 @@ fun DeveloperInfo(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "网站开发者",
+                    text = "Desarrollador del sitio web",
                     fontSize = 15.sp,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -753,18 +753,18 @@ fun DeveloperInfo(
                         Text(stringResource(R.string.github))
                     }
 
-                    // 赞助商
+                    // Patrocinadores
                     FilledTonalButton(
                         onClick = { showSponsor = true },
                         modifier = Modifier.height(38.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Coffee,
-                            contentDescription = "赞助商",
+                            contentDescription = "Patrocinadores",
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(8.dp))
-                        Text("赞助商")
+                        Text("Patrocinadores")
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -856,7 +856,7 @@ fun SponsorSheet(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "赞助商",
+                    text = "Patrocinadores",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold
                 )
